@@ -38,11 +38,11 @@ class ToDoListViewController: UITableViewController {
         
     }
     @IBAction func addItem(_ sender: Any) {
-        print("bar button clicked")
         let alert = UIAlertController(title:"Add New Item", message:"Add your todo item", preferredStyle:.alert)
-        alert.addTextField(configurationHandler: nil)
+        alert.addTextField(configurationHandler: {$0.placeholder="New Item"})
         let okAction = UIAlertAction(title: "Add", style: UIAlertAction.Style.default) { action in
-            self.itemArray.append(alert.textFields![0].text!)
+            let str = alert.textFields![0].text!
+            self.itemArray.append(str)
             self.tableView.reloadData()
         }
         alert.addAction(okAction)
