@@ -7,13 +7,15 @@
 //
 
 import UIKit
-
+import CoreData
 class ToDoListViewController: UITableViewController {
     var itemArray = [Item]()
-    let filePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     override func viewDidLoad() {
         super.viewDidLoad()
         loadList()
+        let path = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+        print(path)
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return itemArray.count
@@ -24,11 +26,13 @@ class ToDoListViewController: UITableViewController {
         cell.textLabel?.text = itemArray[indexPath.row].title
         let item = itemArray[indexPath.row]
         cell.accessoryType = item.done ? .checkmark : .none
-        saveList()
         return cell
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let item = itemArray[indexPath.row]
+//        context.delete(item)
+//        itemArray.remove(at: indexPath.row)
+//        tableView.reloadData()
         item.done = !item.done
         tableView.deselectRow(at: indexPath, animated: true)
         tableView.cellForRow(at: indexPath)?.accessoryType = item.done ? .checkmark : .none
@@ -39,8 +43,9 @@ class ToDoListViewController: UITableViewController {
         alert.addTextField(configurationHandler: {$0.placeholder="New Item"})
         let okAction = UIAlertAction(title: "Add", style: UIAlertAction.Style.default) { action in
             let str = alert.textFields![0].text!
-            let item = Item()
+            let item = Item(context: self.context)
             item.title = str
+            item.done = false
             self.itemArray.append(item)
             self.saveList()
             self.tableView.reloadData()
@@ -52,24 +57,22 @@ class ToDoListViewController: UITableViewController {
     }
     func loadList()
     {
-        let decoder = PropertyListDecoder()
-        if let data = try? Data(contentsOf: filePath!)
-        {
-           if let items = try? decoder.decode([Item].self, from: data)
-           {
-            itemArray = items
-            tableView.reloadData()
-           }
+        let request:NSFetchRequest<Item> = Item.fetchRequest()
+        do{
+            itemArray = try context.fetch(request)
+        }
+        catch{
+            print("Faield to fetch data \(error)")
         }
     }
     func saveList()
     {
-        let encoder = PropertyListEncoder()
-        if let data = try? encoder.encode(itemArray)
-        {
-            try? data.write(to: filePath!)
+        do {
+            try context.save()
         }
-        
+        catch{
+            print("save data failed")
+        }
     }
 }
 
