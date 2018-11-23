@@ -8,8 +8,10 @@
 
 import UIKit
 import CoreData
-class ToDoListViewController: UITableViewController {
+import RealmSwift
+class ToDoListViewController: UITableViewController{
     var itemArray = [Item]()
+    var selectedCategory:Category!
     let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -46,6 +48,7 @@ class ToDoListViewController: UITableViewController {
             let item = Item(context: self.context)
             item.title = str
             item.done = false
+            item.parentCategory = self.selectedCategory
             self.itemArray.append(item)
             self.saveList()
             self.tableView.reloadData()
@@ -57,13 +60,37 @@ class ToDoListViewController: UITableViewController {
     }
     func loadList()
     {
-        let request:NSFetchRequest<Item> = Item.fetchRequest()
+        let query:NSFetchRequest<Item> = Item.fetchRequest()
+        queryDatabase(query: query)
+    }
+    func queryDatabase(query:NSFetchRequest<Item>)
+    {
+        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory.name!)
+        print("123")
+        if let predicate = query.predicate
+        {
+            
+            query.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, predicate])
+        }
+        else{
+            query.predicate = categoryPredicate
+        }
         do{
-            itemArray = try context.fetch(request)
+            itemArray = try context.fetch(query)
         }
         catch{
             print("Faield to fetch data \(error)")
         }
+        var tmp = [Item]()
+        for item in itemArray
+        {
+            if(item.parentCategory == selectedCategory)
+            {
+                tmp.append(item)
+            }
+            itemArray = tmp
+        }
+        tableView.reloadData()
     }
     func saveList()
     {
@@ -75,4 +102,25 @@ class ToDoListViewController: UITableViewController {
         }
     }
 }
-
+//MARK: - Search Bar methods
+extension ToDoListViewController:UISearchBarDelegate
+{
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        let query:NSFetchRequest<Item> = Item.fetchRequest()
+        query.predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        query.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+        queryDatabase(query: query)
+        searchBar.resignFirstResponder()
+    }
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        
+        if searchText == ""
+        {
+            loadList()
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder()
+            }
+            
+        }
+    }
+}
