@@ -7,10 +7,11 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 class CategoryViewController: UITableViewController {
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
-    var categories:[Category] = [Category]()
+    let realm = try! Realm()
+    //let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+    var categories:Results<Category>!
     override func viewDidLoad() {
         super.viewDidLoad()
         loadCategories()
@@ -24,10 +25,9 @@ class CategoryViewController: UITableViewController {
         }
         let addAction = UIAlertAction(title: "Add", style: .default) {
             action in
-            let category = Category(context: self.context)
+            let category = Category()
             category.name = categoryTextField.text!
-            self.categories.append(category)
-            self.saveCategories()
+            self.save(category:category)
         }
         let cancelAction = UIAlertAction(title: "Cancel", style: .cancel, handler: nil)
         alertVC.addAction(addAction)
@@ -64,24 +64,21 @@ class CategoryViewController: UITableViewController {
         }
     }
     //MARK: - Data Manipulation Method
-    func saveCategories()
+    func save(category:Category)
     {
         do{
-            try context.save()
+            try realm.write {
+                realm.add(category)
+            }
         }
         catch{
             print("save category to cordata error:\(error)")
         }
         tableView.reloadData()
     }
-    func loadCategories(request:NSFetchRequest<Category> = Category.fetchRequest())
+    func loadCategories()
     {
-        do{
-            categories = try context.fetch(request)
-        }
-        catch{
-            print("Loading Categories Error:\(error)")
-        }
+        categories = realm.objects(Category.self)
         tableView.reloadData()
     }
 }

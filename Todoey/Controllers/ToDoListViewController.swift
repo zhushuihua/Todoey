@@ -7,12 +7,11 @@
 //
 
 import UIKit
-import CoreData
 import RealmSwift
 class ToDoListViewController: UITableViewController{
-    var itemArray = [Item]()
+    var itemArray:Results<Item>!
+    let realm = try! Realm()
     var selectedCategory:Category!
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     override func viewDidLoad() {
         super.viewDidLoad()
         loadList()
@@ -32,95 +31,66 @@ class ToDoListViewController: UITableViewController{
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let item = itemArray[indexPath.row]
-//        context.delete(item)
-//        itemArray.remove(at: indexPath.row)
-//        tableView.reloadData()
-        item.done = !item.done
+        do{
+            try realm.write {
+                item.done = !item.done
+                tableView.reloadData()
+            }
+        }catch
+        {
+            print("deletion failed \(error)")
+        }
         tableView.deselectRow(at: indexPath, animated: true)
         tableView.cellForRow(at: indexPath)?.accessoryType = item.done ? .checkmark : .none
-        saveList()
     }
     @IBAction func addItemButtonPressed(_ sender: Any) {
+        var entry:UITextField!
         let alert = UIAlertController(title:"Add New Item", message:"Add your todo item", preferredStyle:.alert)
-        alert.addTextField(configurationHandler: {$0.placeholder="New Item"})
+            alert.addTextField(configurationHandler: {
+            $0.placeholder="New Item"
+            entry = $0
+        })
         let okAction = UIAlertAction(title: "Add", style: UIAlertAction.Style.default) { action in
-            let str = alert.textFields![0].text!
-            let item = Item(context: self.context)
-            item.title = str
-            item.done = false
-            item.parentCategory = self.selectedCategory
-            self.itemArray.append(item)
-            self.saveList()
-            self.tableView.reloadData()
+            do{
+               try  self.realm.write {
+                    let item = Item()
+                    item.title = entry.text!
+                    self.selectedCategory.items.append(item)
+                }
+                self.tableView.reloadData()
+        }
+        catch{
+            print("error save new item \(error)")
+        }
         }
         alert.addAction(okAction)
         let cancelAction = UIAlertAction(title: "Cancel", style: UIAlertAction.Style.cancel, handler: nil)
         alert.addAction(cancelAction)
         self.present(alert, animated: true, completion: nil)
     }
+    
     func loadList()
-    {
-        let query:NSFetchRequest<Item> = Item.fetchRequest()
-        queryDatabase(query: query)
-    }
-    func queryDatabase(query:NSFetchRequest<Item>)
-    {
-        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory.name!)
-        print("123")
-        if let predicate = query.predicate
-        {
-            
-            query.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, predicate])
-        }
-        else{
-            query.predicate = categoryPredicate
-        }
-        do{
-            itemArray = try context.fetch(query)
-        }
-        catch{
-            print("Faield to fetch data \(error)")
-        }
-        var tmp = [Item]()
-        for item in itemArray
-        {
-            if(item.parentCategory == selectedCategory)
-            {
-                tmp.append(item)
-            }
-            itemArray = tmp
-        }
+   {
+        itemArray = selectedCategory.items.sorted(byKeyPath: "title", ascending: true)
+    
         tableView.reloadData()
-    }
-    func saveList()
-    {
-        do {
-            try context.save()
-        }
-        catch{
-            print("save data failed")
-        }
     }
 }
 //MARK: - Search Bar methods
 extension ToDoListViewController:UISearchBarDelegate
 {
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-        let query:NSFetchRequest<Item> = Item.fetchRequest()
-        query.predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
-        query.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
-        queryDatabase(query: query)
+        itemArray = itemArray.filter(NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)).sorted(byKeyPath: "createDate", ascending: false)
+        tableView.reloadData()
         searchBar.resignFirstResponder()
     }
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
-        
-        if searchText == ""
+        if(searchText.isEmpty)
         {
             loadList()
             DispatchQueue.main.async {
                 searchBar.resignFirstResponder()
             }
-            
         }
     }
 }
