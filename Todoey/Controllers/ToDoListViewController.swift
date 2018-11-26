@@ -8,40 +8,36 @@
 
 import UIKit
 import RealmSwift
-class ToDoListViewController: UITableViewController{
-    var itemArray:Results<Item>!
-    let realm = try! Realm()
+import ChameleonFramework
+class ToDoListViewController: SwipeTableViewCellController<Item>{
     var selectedCategory:Category!
+    var barOriginalColor:UIColor?
+    @IBOutlet weak var searchBar: UISearchBar!
     override func viewDidLoad() {
         super.viewDidLoad()
+        cellIdentifier = "toDoItemCell"
+        title = selectedCategory.name
         loadList()
-        let path = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        print(path)
     }
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return itemArray.count
+    override func viewWillAppear(_ animated: Bool) {
+        barOriginalColor = navigationController?.navigationBar.barTintColor
+       let color = UIColor(hexString: selectedCategory.hextColor!)
+            searchBar.barTintColor = color!
+        updateNavColor(color: color!)
     }
-    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell
-    {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "toDoItemCell", for: indexPath)
-        cell.textLabel?.text = itemArray[indexPath.row].title
-        let item = itemArray[indexPath.row]
-        cell.accessoryType = item.done ? .checkmark : .none
-        return cell
-    }
-    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let item = itemArray[indexPath.row]
-        do{
-            try realm.write {
-                item.done = !item.done
-                tableView.reloadData()
-            }
-        }catch
+    override func viewWillDisappear(_ animated: Bool) {
+        if let color = barOriginalColor
         {
-            print("deletion failed \(error)")
+            updateNavColor(color: color)
         }
-        tableView.deselectRow(at: indexPath, animated: true)
-        tableView.cellForRow(at: indexPath)?.accessoryType = item.done ? .checkmark : .none
+    }
+    func updateNavColor(color:UIColor)
+    {
+        navigationController?.navigationBar.barTintColor = color
+        navigationController?.navigationBar.tintColor = UIColor(contrastingBlackOrWhiteColorOn: color, isFlat: true)
+        navigationController?.navigationBar.largeTitleTextAttributes = [NSAttributedString.Key.foregroundColor:UIColor(contrastingBlackOrWhiteColorOn: color, isFlat: true)]
+        navigationController?.navigationBar.titleTextAttributes = [NSAttributedString.Key.foregroundColor:UIColor(contrastingBlackOrWhiteColorOn: color, isFlat: true)]
+
     }
     @IBAction func addItemButtonPressed(_ sender: Any) {
         var entry:UITextField!
@@ -51,46 +47,55 @@ class ToDoListViewController: UITableViewController{
             entry = $0
         })
         let okAction = UIAlertAction(title: "Add", style: UIAlertAction.Style.default) { action in
+            let item = Item()
+            item.title = entry.text!
             do{
-               try  self.realm.write {
-                    let item = Item()
-                    item.title = entry.text!
+               try self.realm.write {
                     self.selectedCategory.items.append(item)
                 }
-                self.tableView.reloadData()
-        }
-        catch{
-            print("error save new item \(error)")
-        }
+            }
+            catch
+            {
+                print("Failedto add item to items\(error)")
+            }
+            self.save(t: item)
+            self.tableView.reloadData()
         }
         alert.addAction(okAction)
         let cancelAction = UIAlertAction(title: "Cancel", style: UIAlertAction.Style.cancel, handler: nil)
         alert.addAction(cancelAction)
         self.present(alert, animated: true, completion: nil)
     }
-    
+    override func displayACell(cell: UITableViewCell, indexPath: IndexPath) {
+        let item = results[indexPath.row]
+        cell.textLabel?.text = item.title
+        cell.accessoryType = item.done ? .checkmark : .none
+        let darkentFactor = CGFloat(indexPath.row) / CGFloat(results.count);
+        if let color = UIColor(hexString: selectedCategory.hextColor!)
+        {
+            cell.backgroundColor = color.darken(byPercentage: darkentFactor)
+            cell.textLabel?.textColor = UIColor(contrastingBlackOrWhiteColorOn: cell.backgroundColor, isFlat: true)
+        }
+    }
+    override func selectedAnItem(at indexpath: IndexPath) {
+        let cell = tableView.cellForRow(at: indexpath)
+        let item = results[indexpath.row]
+        do{
+            try realm.write {
+                item.done = !item.done
+            }
+        }
+        catch
+        {
+            print("done saving failed \(error)")
+        }
+        cell?.accessoryType = item.done ? .checkmark : .none
+        tableView.deselectRow(at:indexpath, animated: true)
+    }
     func loadList()
    {
-        itemArray = selectedCategory.items.sorted(byKeyPath: "title", ascending: true)
-    
+        results = selectedCategory.items.sorted(byKeyPath: "title", ascending: true)
         tableView.reloadData()
     }
 }
 //MARK: - Search Bar methods
-extension ToDoListViewController:UISearchBarDelegate
-{
-    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-        itemArray = itemArray.filter(NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)).sorted(byKeyPath: "createDate", ascending: false)
-        tableView.reloadData()
-        searchBar.resignFirstResponder()
-    }
-    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
-        if(searchText.isEmpty)
-        {
-            loadList()
-            DispatchQueue.main.async {
-                searchBar.resignFirstResponder()
-            }
-        }
-    }
-}

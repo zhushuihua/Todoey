@@ -8,13 +8,20 @@
 
 import UIKit
 import RealmSwift
-class CategoryViewController: UITableViewController {
-    let realm = try! Realm()
+import SwipeCellKit
+class CategoryViewController: SwipeTableViewCellController<Category>
+{
     //let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
-    var categories:Results<Category>!
     override func viewDidLoad() {
         super.viewDidLoad()
+        cellIdentifier = "CategoryCell"
         loadCategories()
+        if let color = navigationController?.navigationBar.barTintColor
+        {
+            navigationController?.navigationBar.tintColor = UIColor(contrastingBlackOrWhiteColorOn: color, isFlat: true)
+            navigationController?.navigationBar.largeTitleTextAttributes = [NSAttributedString.Key.foregroundColor:UIColor(contrastingBlackOrWhiteColorOn: color, isFlat: true)]
+            navigationController?.navigationBar.titleTextAttributes = [NSAttributedString.Key.foregroundColor:UIColor(contrastingBlackOrWhiteColorOn: color, isFlat: true)]
+        }
     }
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
         var categoryTextField:UITextField!
@@ -27,30 +34,23 @@ class CategoryViewController: UITableViewController {
             action in
             let category = Category()
             category.name = categoryTextField.text!
-            self.save(category:category)
+            category.hextColor = UIColor.randomFlat()?.hexValue()
+            self.save(t:category)
         }
         let cancelAction = UIAlertAction(title: "Cancel", style: .cancel, handler: nil)
         alertVC.addAction(addAction)
         alertVC.addAction(cancelAction)
         present(alertVC, animated: true, completion: nil)
     }
-    
-    //MARK: - TableView DataSoruce Methods
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return categories.count
+    override func displayACell(cell: UITableViewCell, indexPath:IndexPath) {
+        let oneItem = results[indexPath.row]
+        cell.textLabel?.text = oneItem.name
+        cell.backgroundColor = UIColor(hexString: oneItem.hextColor)
+        cell.textLabel?.textColor = UIColor(contrastingBlackOrWhiteColorOn: cell.backgroundColor!, isFlat: true)
     }
     
-    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell
-    {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
-        cell.textLabel?.text = categories[indexPath.row].name
-        return cell
-    }
-    //MARK: - TableView Delegate Method
-    
-    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-     //   tableView.deselectRow(at: indexPath, animated: true)
-        performSegue(withIdentifier: "goToItems", sender: self)
+    override func selectedAnItem(at indexpath:IndexPath){
+         performSegue(withIdentifier: "goToItems", sender: self)
     }
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
        
@@ -59,26 +59,14 @@ class CategoryViewController: UITableViewController {
             
             let destination = segue.destination as! ToDoListViewController
             if let indexPath = tableView.indexPathForSelectedRow{
-                destination.selectedCategory = categories[indexPath.row]
+                destination.selectedCategory = results[indexPath.row]
             }
         }
     }
     //MARK: - Data Manipulation Method
-    func save(category:Category)
-    {
-        do{
-            try realm.write {
-                realm.add(category)
-            }
-        }
-        catch{
-            print("save category to cordata error:\(error)")
-        }
-        tableView.reloadData()
-    }
     func loadCategories()
     {
-        categories = realm.objects(Category.self)
+        results = realm.objects(Category.self)
         tableView.reloadData()
     }
 }
